@@ -1,0 +1,42 @@
+﻿# Build output
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS & tooling
+.vs/
+.vscode/
+_ReSharper.Caches/
+*.Cache
+*.ncrunch*
+*.DotSettings.user
+
+# Packages & libs
+packages/
+*.nupkg
+*.snupkg
+*.dll
+*.pdb
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# NinjaTrader folders above this add-on dir (avoid committing compiled/auto files)
+..\obj/
+..\bin/
+..\..\..\logs/
+..\..\..\trace/
+
+# Secrets
+*.key
+*.pem
+*.pfx
+*.cer
+secrets.json
+appsettings.*.json

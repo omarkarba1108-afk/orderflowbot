@@ -1,4 +1,4 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Controls;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Events;
@@ -23,11 +23,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
             initialToggleState = new Dictionary<string, bool>
             {
                 { ButtonName.ENABLED, true },
-                { ButtonName.AUTO, false },
-                { ButtonName.ALERT, false },
-                { ButtonName.CLOSE, false },
-                { ButtonName.RESET_DIRECTION, false },
-                { ButtonName.RESET_STRATEGIES, false },
+                { ButtonName.AUTO, false }
             };
         }
 
@@ -60,49 +56,6 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
                     ClickHandler = (Action<object, EventArgs>)HandleButtonClick,
                     IsToggleable = true,
                     InitialToggleState = initialToggleState[ButtonName.AUTO]
-                },
-                new ButtonModel
-                {
-                    Name = ButtonName.ALERT,
-                    Content = "Alert Disabled",
-                    ToggledContent = "Alert Enabled",
-                    BackgroundColor = CustomColors.BUTTON_GREEN_COLOR,
-                    HoverBackgroundColor = CustomColors.BUTTON_HOVER_BG_COLOR,
-                    ToggledBackgroundColor = CustomColors.BUTTON_BG_COLOR,
-                    TextColor = CustomColors.TEXT_COLOR,
-                    ClickHandler = (Action<object, EventArgs>)HandleButtonClick,
-                    IsToggleable = true,
-                    InitialToggleState = initialToggleState[ButtonName.ALERT]
-                },
-                new ButtonModel
-                {
-                    Name = ButtonName.CLOSE,
-                    Content = "Close",
-                    BackgroundColor = CustomColors.BUTTON_BG_COLOR,
-                    HoverBackgroundColor = CustomColors.BUTTON_HOVER_BG_COLOR,
-                    TextColor = CustomColors.TEXT_COLOR,
-                    ClickHandler = (Action<object, EventArgs>)HandleButtonClick,
-                    IsToggleable = initialToggleState[ButtonName.CLOSE]
-                },
-                new ButtonModel
-                {
-                    Name = ButtonName.RESET_DIRECTION,
-                    Content = "Reset Direction",
-                    BackgroundColor = CustomColors.BUTTON_BG_COLOR,
-                    HoverBackgroundColor = CustomColors.BUTTON_HOVER_BG_COLOR,
-                    TextColor = CustomColors.TEXT_COLOR,
-                    ClickHandler = (Action<object, EventArgs>)HandleButtonClick,
-                    IsToggleable = initialToggleState[ButtonName.RESET_DIRECTION]
-                },
-                new ButtonModel
-                {
-                    Name = ButtonName.RESET_STRATEGIES,
-                    Content = "Reset Strategies",
-                    BackgroundColor = CustomColors.BUTTON_BG_COLOR,
-                    HoverBackgroundColor = CustomColors.BUTTON_HOVER_BG_COLOR,
-                    TextColor = CustomColors.TEXT_COLOR,
-                    ClickHandler = (Action<object, EventArgs>)HandleButtonClick,
-                    IsToggleable = initialToggleState[ButtonName.RESET_STRATEGIES]
                 }
             };
 
@@ -136,31 +89,14 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
                     userInterfaceEvents.AutoTradeTriggered(state.IsToggled);
                     break;
 
-                case ButtonName.ALERT:
-                    userInterfaceEvents.AlertTriggered(state.IsToggled);
-                    break;
-
-                case ButtonName.CLOSE:
-                    userInterfaceEvents.CloseTriggered();
-                    userInterfaceEvents.ResetTriggerStrikePrice();
-                    break;
-
-                case ButtonName.RESET_DIRECTION:
-                    userInterfaceEvents.ResetDirectionTriggered();
-                    break;
-
-                case ButtonName.RESET_STRATEGIES:
-                    userInterfaceEvents.ResetStrategiesTriggered();
-                    break;
-
                 default:
-                    throw new ArgumentException($"Unknown button tag: {buttonName}");
+                    throw new ArgumentException("Unknown button tag: " + buttonName);
             }
         }
 
         public override void HandleAutoTradeTriggered(bool isEnabled)
         {
-            SetButtonEnabled(buttons[ButtonName.RESET_DIRECTION], !isEnabled);
+            // No additional actions needed for Auto trade
         }
     }
 }

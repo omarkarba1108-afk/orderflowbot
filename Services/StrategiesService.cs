@@ -1,4 +1,4 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Events;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Models.Strategies;
@@ -42,7 +42,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
 
             if (!Directory.Exists(implementationsPath))
             {
-                _eventManager.PrintMessage($"Directory not found: {implementationsPath}");
+                _eventManager.PrintMessage("Directory not found: " + implementationsPath);
                 return;
             }
 
@@ -51,7 +51,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
             foreach (string file in files)
             {
                 string className = Path.GetFileNameWithoutExtension(file);
-                Type type = Type.GetType($"NinjaTrader.Custom.AddOns.OrderFlowBot.Models.Strategies.Implementations.{className}");
+                Type type = Type.GetType("NinjaTrader.Custom.AddOns.OrderFlowBot.Models.Strategies.Implementations." + className);
 
                 if (type != null)
                 {
@@ -65,12 +65,12 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
                     }
                     catch (Exception ex)
                     {
-                        _eventManager.PrintMessage($"Error creating instance of {className}: {ex.Message}");
+                        _eventManager.PrintMessage("Error creating instance of " + className + ": " + ex.Message);
                     }
                 }
                 else
                 {
-                    _eventManager.PrintMessage($"Could not find type for {className}");
+                    _eventManager.PrintMessage("Could not find type for " + className);
                 }
             }
         }
@@ -85,7 +85,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
                 return ctor.Invoke(new object[] { eventsContainer });
             }
 
-            _eventManager.PrintMessage($"No suitable constructor found for {type.Name}");
+            _eventManager.PrintMessage("No suitable constructor found for " + type.Name);
             return null;
         }
 

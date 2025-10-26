@@ -1,11 +1,12 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
-using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
-using NinjaTrader.Custom.AddOns.OrderFlowBot.Events;
-using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Controls;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Controls;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Events;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Models;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Utils;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Events;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.States; // added for Direction
 using System;
 using System.Collections.Generic;
 using System.Windows;
@@ -40,7 +41,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
             {
                 { ButtonName.STANDARD, false },
                 { ButtonName.LONG, false },
-                { ButtonName.SHORT, false },
+                { ButtonName.SHORT, false }
             };
         }
 
@@ -208,21 +209,21 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
             switch (buttonName)
             {
                 case ButtonName.STANDARD:
-                    userInterfaceEvents.StandardTriggered
-                    (
+                    userInterfaceEvents.StandardTriggered(
                         state.IsToggled ? Direction.Inverse : Direction.Standard
                     );
                     break;
+
                 case ButtonName.LONG:
                     HandleLongShortButtonClick();
-
                     break;
+
                 case ButtonName.SHORT:
                     HandleLongShortButtonClick();
                     break;
 
                 default:
-                    throw new ArgumentException($"Unknown button tag: {buttonName}");
+                    throw new ArgumentException("Unknown button tag: " + buttonName);
             }
         }
 
@@ -234,20 +235,22 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
             bool isLongEnabled = longState.IsToggled;
             bool isShortEnabled = shortState.IsToggled;
 
-            switch ((isLongEnabled, isShortEnabled))
+            // replaced tuple switch with classic if/else
+            if (isLongEnabled && isShortEnabled)
             {
-                case (true, true):
-                    userInterfaceEvents.DirectionTriggered(Direction.Any);
-                    break;
-                case (true, false):
-                    userInterfaceEvents.DirectionTriggered(Direction.Long);
-                    break;
-                case (false, true):
-                    userInterfaceEvents.DirectionTriggered(Direction.Short);
-                    break;
-                default:
-                    userInterfaceEvents.DirectionTriggered(Direction.Flat);
-                    break;
+                userInterfaceEvents.DirectionTriggered(Direction.Any);
+            }
+            else if (isLongEnabled && !isShortEnabled)
+            {
+                userInterfaceEvents.DirectionTriggered(Direction.Long);
+            }
+            else if (!isLongEnabled && isShortEnabled)
+            {
+                userInterfaceEvents.DirectionTriggered(Direction.Short);
+            }
+            else
+            {
+                userInterfaceEvents.DirectionTriggered(Direction.Flat);
             }
         }
 
@@ -257,21 +260,20 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
             _triggerStrikeTextBox.Text = "";
 
             // Reset the initial toggle state and enable/disable
-            foreach (var buttonName in buttons.Keys)
+            foreach (string name in buttons.Keys)
             {
-                ButtonState buttonState = (ButtonState)buttons[buttonName].Tag;
+                ButtonState buttonState = (ButtonState)buttons[name].Tag;
 
-                if (buttonName == ButtonName.STANDARD)
-                {
+                if (name == ButtonName.STANDARD)
                     continue;
-                }
 
-                if (initialToggleState.TryGetValue(buttonName, out bool toggleState))
+                bool toggleState;
+                if (initialToggleState.TryGetValue(name, out toggleState))
                 {
                     buttonState.IsToggled = toggleState;
                 }
 
-                SetButtonEnabled(buttons[buttonName], !isEnabled);
+                SetButtonEnabled(buttons[name], !isEnabled);
             }
         }
 
@@ -284,15 +286,15 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
         {
             _triggerStrikeTextBox.Text = "";
 
-            foreach (var buttonName in buttons.Keys)
+            foreach (string name in buttons.Keys)
             {
-                ButtonState buttonState = (ButtonState)buttons[buttonName].Tag;
+                ButtonState buttonState = (ButtonState)buttons[name].Tag;
 
-                if (initialToggleState.TryGetValue(buttonName, out bool toggleState))
+                bool toggleState;
+                if (initialToggleState.TryGetValue(name, out toggleState))
                 {
                     buttonState.IsToggled = toggleState;
-
-                    UserInterfaceUtils.ForceRefreshButton(buttons[buttonName]);
+                    UserInterfaceUtils.ForceRefreshButton(buttons[name]);
                 }
             }
         }
@@ -313,14 +315,13 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
         {
             _triggerStrikeTextBox.Text = "";
 
-            foreach (var buttonName in buttons.Keys)
+            foreach (string name in buttons.Keys)
             {
-                if (buttonName == ButtonName.LONG || buttonName == ButtonName.SHORT)
+                if (name == ButtonName.LONG || name == ButtonName.SHORT)
                 {
-                    ButtonState buttonState = (ButtonState)buttons[buttonName].Tag;
-                    buttonState.IsToggled = initialToggleState[buttonName];
-
-                    UserInterfaceUtils.ForceRefreshButton(buttons[buttonName]);
+                    ButtonState buttonState = (ButtonState)buttons[name].Tag;
+                    buttonState.IsToggled = initialToggleState[name];
+                    UserInterfaceUtils.ForceRefreshButton(buttons[name]);
                 }
             }
         }

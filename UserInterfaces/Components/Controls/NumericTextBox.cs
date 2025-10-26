@@ -1,7 +1,6 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Utils;
 using System;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -12,126 +11,170 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Contr
     public class NumericTextBox
     {
         public TextBox TextBox { get; private set; }
+
         private readonly DispatcherTimer _debounceTimer;
         public event EventHandler DebouncedTextChanged;
 
         public NumericTextBox(string toolTip)
         {
-            TextBox = new TextBox
+            var tb = new TextBox();
+            tb.Height = 30;
+            tb.Margin = new Thickness(3, 3, 3, 3);
+            tb.ToolTip = toolTip;
+            tb.VerticalContentAlignment = VerticalAlignment.Center;
+            tb.Background = UserInterfaceUtils.GetSolidColorBrushFromHex(CustomColors.INPUT_FIELD_COLOR);
+            tb.IsEnabled = false;
+
+            // Key handling (navigation + edit keys)
+            tb.PreviewKeyDown += OnPreviewKeyDown;
+
+            // Text input validation
+            tb.PreviewTextInput += OnPreviewTextInput;
+
+            // Paste validation
+            DataObject.AddPastingHandler(tb, OnPaste);
+
+            // Debounce change notifications
+            _debounceTimer = new DispatcherTimer();
+            _debounceTimer.Interval = TimeSpan.FromMilliseconds(300);
+            _debounceTimer.Tick += (s, e) =>
             {
-                Height = 30,
-                Margin = new Thickness(3, 3, 3, 3),
-                ToolTip = toolTip,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Background = UserInterfaceUtils.GetSolidColorBrushFromHex(CustomColors.INPUT_FIELD_COLOR),
-                IsEnabled = false
+                _debounceTimer.Stop();
+                var handler = DebouncedTextChanged;
+                if (handler != null) handler(this, EventArgs.Empty);
             };
 
-            TextBox.PreviewKeyDown += PreviewKeyDown;
-
-            _debounceTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(300)
-            };
-            _debounceTimer.Tick += DebounceTimer;
-
-            TextBox.TextChanged += (s, e) =>
+            tb.TextChanged += (s, e) =>
             {
                 _debounceTimer.Stop();
                 _debounceTimer.Start();
             };
+
+            TextBox = tb;
         }
 
-        private void DebounceTimer(object sender, EventArgs e)
+        // Allow navigation/edit keys; text validation happens in PreviewTextInput
+        private static void OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
-            _debounceTimer.Stop();
-
-            DebouncedTextChanged?.Invoke(this, EventArgs.Empty);
+            switch (e.Key)
+            {
+                case Key.Left:
+                case Key.Right:
+                case Key.Up:
+                case Key.Down:
+                case Key.Home:
+                case Key.End:
+                case Key.Tab:
+                case Key.Back:
+                case Key.Delete:
+                    // allow
+                    e.Handled = false;
+                    return;
+                default:
+                    // let PreviewTextInput handle character input;
+                    // do not mark handled here
+                    return;
+            }
         }
 
-        private static void PreviewKeyDown(object sender, KeyEventArgs e)
+        private void OnPreviewTextInput(object sender, TextCompositionEventArgs e)
         {
-            TextBox textBoxSender = (TextBox)sender;
-            string currentText = textBoxSender.Text;
-            int selectionStart = textBoxSender.SelectionStart;
+            var tb = (TextBox)sender;
 
-            // Allow arrow keys for navigation
-            if (e.Key == Key.Left || e.Key == Key.Right)
+            // Simulate resulting text after input
+            string current = tb.Text ?? string.Empty;
+            int selStart = tb.SelectionStart;
+            int selLen = tb.SelectionLength;
+
+            string proposed = current.Remove(selStart, selLen)
+                                     .Insert(selStart, e.Text);
+
+            if (!IsValidNumericString(proposed))
             {
-                e.Handled = false; // Allow the arrow key press to pass through
-                return;
+                e.Handled = true; // block
             }
-
-            // Allow backspace and delete operations
-            if (e.Key == Key.Back || e.Key == Key.Delete)
-            {
-                e.Handled = false;
-                return;
-            }
-
-            // Handle numeric key press
-            if ((e.Key >= Key.D0 && e.Key <= Key.D9 && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) ||
-                (e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9 && Keyboard.IsKeyToggled(Key.NumLock)))
-            {
-                int decimalIndex = currentText.IndexOf('.');
-
-                // Check if input is after the decimal and already has two digits
-                if (decimalIndex != -1 && selectionStart > decimalIndex && currentText.Length - decimalIndex > 2)
-                {
-                    e.Handled = true;
-                }
-                else
-                {
-                    char num = (char)('0' + (e.Key - (e.Key >= Key.NumPad0 ? Key.NumPad0 : Key.D0)));
-                    ReplaceText(textBoxSender, num.ToString());
-                    e.Handled = true;
-                }
-                return;
-            }
-
-            // Handle decimal point
-            if (e.Key == Key.Decimal || e.Key == Key.OemPeriod)
-            {
-                if (!currentText.Contains('.'))
-                {
-                    ReplaceText(textBoxSender, ".");
-                }
-                e.Handled = true;
-                return;
-            }
-
-            // Handle negative sign
-            if (e.Key == Key.Subtract || e.Key == Key.OemMinus)
-            {
-                if (selectionStart == 0 && !currentText.StartsWith("-"))
-                {
-                    ReplaceText(textBoxSender, "-");
-                }
-                e.Handled = true;
-                return;
-            }
-
-            // Block any other key input
-            e.Handled = true;
+            // else: let WPF insert normally
         }
 
-        private static void ReplaceText(TextBox textBox, string newText)
+        private void OnPaste(object sender, DataObjectPastingEventArgs e)
         {
-            int selectionStart = textBox.SelectionStart;
-            int selectionLength = textBox.SelectionLength;
-            string currentText = textBox.Text;
-
-            // Replace selected text or insert new text at the current cursor position
-            string updatedText = currentText.Remove(selectionStart, selectionLength).Insert(selectionStart, newText);
-
-            // Check if the text has more than one decimal point
-            if (updatedText.Count(c => c == '.') > 1)
+            if (!e.DataObject.GetDataPresent(DataFormats.Text))
             {
+                e.CancelCommand();
                 return;
             }
 
-            textBox.Text = updatedText;
-            textBox.SelectionStart = selectionStart + newText.Length;
+            var tb = (TextBox)sender;
+            string pasteText = e.DataObject.GetData(DataFormats.Text) as string ?? string.Empty;
+
+            string current = tb.Text ?? string.Empty;
+            int selStart = tb.SelectionStart;
+            int selLen = tb.SelectionLength;
+
+            string proposed = current.Remove(selStart, selLen)
+                                     .Insert(selStart, pasteText);
+
+            if (!IsValidNumericString(proposed))
+                e.CancelCommand();
+        }
+
+        /// <summary>
+        /// Valid formats:
+        ///   optional leading '-', digits, optional single '.', up to two digits after '.'
+        ///   empty string is OK (user still typing)
+        /// </summary>
+        private static bool IsValidNumericString(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return true; // allow user to clear/start
+
+            int i = 0;
+            int len = s.Length;
+
+            // optional leading '-'
+            if (s[0] == '-')
+            {
+                i = 1;
+                if (len == 1) return true; // just "-"
+            }
+
+            bool seenDigit = false;
+            bool seenDot = false;
+            int digitsAfterDot = 0;
+
+            for (; i < len; i++)
+            {
+                char c = s[i];
+
+                if (c >= '0' && c <= '9')
+                {
+                    if (seenDot)
+                    {
+                        digitsAfterDot++;
+                        // enforce two decimals max
+                        if (digitsAfterDot > 2) return false;
+                    }
+                    seenDigit = true;
+                    continue;
+                }
+
+                if (c == '.')
+                {
+                    if (seenDot) return false; // only one dot
+                    seenDot = true;
+                    // if dot is first char after optional '-', require at least one digit eventually
+                    continue;
+                }
+
+                // any other character invalid
+                return false;
+            }
+
+            // if string is just "-" or ".", allow (user typing), otherwise require at least one digit somewhere
+            if (!seenDigit)
+                return (len == 1 && (s[0] == '-' || s[0] == '.'));
+
+            return true;
         }
     }
 }

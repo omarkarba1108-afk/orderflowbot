@@ -1,4 +1,4 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Events;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Controls;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs;
@@ -26,8 +26,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
             ServicesContainer servicesContainer,
             UserInterfaceEvents userInterfaceEvents,
             StrategiesEvents strategiesEvents = null,
-            Image icon = null
-        )
+            Image icon = null)
         {
             this.servicesContainer = servicesContainer;
             this.userInterfaceEvents = userInterfaceEvents;
@@ -60,13 +59,9 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
 
         protected virtual void InitializeGrid()
         {
-            grid = new Grid
-            {
-                Margin = new Thickness(4, 4, 0, 0)
-            };
+            grid = new Grid { Margin = new Thickness(4, 4, 0, 0) };
             grid.ColumnDefinitions.Add(new ColumnDefinition());
             grid.ColumnDefinitions.Add(new ColumnDefinition());
-
             Children.Add(grid);
         }
 
@@ -82,14 +77,9 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
             TextBlock headingLabel = new TextHeadingLabel(label).Label;
             headingLabel.TextAlignment = TextAlignment.Center;
             headingLabel.HorizontalAlignment = HorizontalAlignment.Stretch;
-            headingLabel.TextAlignment = TextAlignment.Center;
 
             headingContainer.Children.Add(headingLabel);
-
-            if (_icon != null)
-            {
-                headingContainer.Children.Add(_icon);
-            }
+            if (_icon != null) headingContainer.Children.Add(_icon);
 
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.Children.Add(headingContainer);
@@ -98,47 +88,37 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
         }
 
         public abstract void InitializeInitialToggleState();
-
         protected abstract void AddButtons();
-
         public abstract void HandleAutoTradeTriggered(bool isEnabled);
-
         public abstract void HandleButtonClick(object sender, EventArgs e);
 
-        public virtual void HandleEnabledDisabledTriggered(bool isEnabled)
-        {
-            SetAllButtonsEnabled(isEnabled);
-        }
+       public virtual void HandleEnabledDisabledTriggered(bool isEnabled)
+		{
+    		SetAllButtonsEnabled(isEnabled);
+		}
+
 
         protected void SetAllButtonsEnabled(bool isEnabled)
         {
             foreach (var button in buttons.Values)
             {
-                if (button.Name == ButtonName.ENABLED && !isEnabled)
-                {
-                    continue;
-                }
-
+                if (button.Name == ButtonName.ENABLED && !isEnabled) continue;
                 button.IsEnabled = isEnabled;
             }
         }
 
         protected static void SetButtonEnabled(Button button, bool isEnabled)
-        {
-            button.IsEnabled = isEnabled;
-        }
+			{
+    			button.IsEnabled = isEnabled;
+			}
 
         protected virtual void AddButtonToGrid(Button button, int row, int column)
         {
             while (grid.RowDefinitions.Count <= row)
-            {
                 grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            }
 
             if (!grid.Children.Contains(button))
-            {
                 grid.Children.Add(button);
-            }
 
             Grid.SetRow(button, row);
             Grid.SetColumn(button, column);
@@ -147,65 +127,69 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
         private void HandleDisableAllControls()
         {
             if (Dispatcher.CheckAccess())
-            {
                 DisableControls(this);
-            }
             else
-            {
-                // Avoid blocking or potential recursion
-                Dispatcher.BeginInvoke(new Action(() => DisableControls(this)));
-            }
+                Dispatcher.BeginInvoke(new Action(delegate { DisableControls(this); }));
         }
 
+        // ======== No C# 7 pattern matching here ========
         private void DisableControls(UIElement uiElement)
         {
-            if (uiElement is Control control)
+            var control = uiElement as Control;
+            if (control != null)
             {
                 control.IsEnabled = false;
+                return;
             }
-            else if (uiElement is Panel panel)
+
+            var panel = uiElement as Panel;
+            if (panel != null)
             {
                 foreach (UIElement child in panel.Children)
-                {
                     DisableControls(child);
-                }
+                return;
             }
-            else if (uiElement is ContentControl contentControl && contentControl.Content is UIElement content)
+
+            var contentControl = uiElement as ContentControl;
+            if (contentControl != null)
             {
-                DisableControls(content);
+                var content = contentControl.Content as UIElement;
+                if (content != null)
+                    DisableControls(content);
             }
         }
 
         private void HandleEnableAllControls()
         {
             if (Dispatcher.CheckAccess())
-            {
-                // Already on the UI thread, directly enable controls
                 EnableControls(this);
-            }
             else
-            {
-                // Avoid blocking or potential recursion
-                Dispatcher.BeginInvoke(new Action(() => EnableControls(this)));
-            }
+                Dispatcher.BeginInvoke(new Action(delegate { EnableControls(this); }));
         }
 
         private void EnableControls(UIElement uiElement)
         {
-            if (uiElement is Control control)
+            var control = uiElement as Control;
+            if (control != null)
             {
                 control.IsEnabled = true;
+                return;
             }
-            else if (uiElement is Panel panel)
+
+            var panel = uiElement as Panel;
+            if (panel != null)
             {
                 foreach (UIElement child in panel.Children)
-                {
                     EnableControls(child);
-                }
+                return;
             }
-            else if (uiElement is ContentControl contentControl && contentControl.Content is UIElement content)
+
+            var contentControl = uiElement as ContentControl;
+            if (contentControl != null)
             {
-                EnableControls(content);
+                var content = contentControl.Content as UIElement;
+                if (content != null)
+                    EnableControls(content);
             }
         }
     }

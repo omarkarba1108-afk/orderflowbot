@@ -1,0 +1,276 @@
+================================================================================
+ORDERFLOWBOT → DASHBOARD LIVE EVENT INTEGRATION
+================================================================================
+
+The dashboard is already listening for events. Now add code to your OrderFlowBot
+to publish Entry and Exit events automatically.
+
+================================================================================
+STEP 1: Add Using Statements (at top of OrderFlowBot.cs)
+================================================================================
+
+You already have:
+using NinjaTrader.Custom.Strategies.OrderFlowBot.Ui;
+
+ADD these 2 more:
+using NinjaTrader.Custom.AddOns.OFB.Dashboard.Models;
+using NinjaTrader.Custom.AddOns.OFB.Dashboard.Services;
+
+
+================================================================================
+STEP 2: Add Broadcast Toggle Parameter
+================================================================================
+
+Add this property with your other parameters:
+
+[NinjaScriptProperty]
+[Display(Name = "Dashboard Broadcast Enabled", Description = "Publish trade events to dashboard", Order = 901, GroupName = "Dashboard")]
+public bool DashboardBroadcastEnabled { get; set; }
+
+
+In State.SetDefaults, set it to true:
+DashboardBroadcastEnabled = true;
+
+
+================================================================================
+STEP 3: Add Trade Context Tracking
+================================================================================
+
+Add this private class and field in your OrderFlowBot class:
+
+private class LiveTradeContext
+{
+    public bool IsLong;
+    public int Qty;
+    public string Tag;
+    public int EntryBar;
+    public double EntryPrice;
+    public double StopPrice;
+    public double TargetPrice;
+    public DateTime EntryTime;
+    public double PointValue;
+}
+
+private readonly System.Collections.Generic.Dictionary<string, LiveTradeContext> _liveContexts 
+    = new System.Collections.Generic.Dictionary<string, LiveTradeContext>();
+
+
+================================================================================
+STEP 4: Publish ENTRY Events (in your entry logic)
+================================================================================
+
+Find where you call EnterLongLimit() or EnterShortLimit().
+RIGHT AFTER the entry order is submitted, add:
+
+// Example: after entry order
+string entryTag = "MyEntry_" + CurrentBar;  // Your actual tag
+EnterLongLimit(0, true, quantity, entryPrice, entryTag);
+
+// Publish to dashboard
+if (DashboardBroadcastEnabled)
+{
+    double pointValue = Instrument.MasterInstrument.PointValue;
+    
+    _liveContexts[entryTag] = new LiveTradeContext
+    {
+        Tag = entryTag,
+        IsLong = true,  // or false for shorts
+        Qty = quantity,
+        EntryBar = CurrentBar,
+        EntryPrice = entryPrice,
+        StopPrice = stopPrice,
+        TargetPrice = targetPrice,
+        EntryTime = Time[0],
+        PointValue = pointValue
+    };
+
+    PerformanceBus.Publish(new TradeEvent
+    {
+        Type = TradeEventType.Entry,
+        Tag = entryTag,
+        Instrument = Instrument.FullName,
+        Strategy = Name,
+        Account = Account.Name,
+        IsLong = true,
+        Qty = quantity,
+        Time = Time[0],
+        EntryPrice = entryPrice,
+        StopPrice = stopPrice,
+        TargetPrice = targetPrice,
+        PointValue = pointValue
+    });
+}
+
+
+================================================================================
+STEP 5: Publish EXIT Events (in OnExecutionUpdate)
+================================================================================
+
+In your OnExecutionUpdate() method, when you detect a fill on stop or target:
+
+protected override void OnExecutionUpdate(Execution execution, string executionId, 
+    double price, int quantity, MarketPosition marketPosition, string orderId, DateTime time)
+{
+    if (execution == null || execution.Order == null) return;
+    
+    // Detect exit fills (stop/target)
+    if ((execution.Order.Name == "Stop loss" || execution.Order.Name == "Profit target") 
+        && execution.Order.OrderState == OrderState.Filled)
+    {
+        string tag = execution.Order.FromEntrySignal;
+        
+        // Publish EXIT event to dashboard
+        if (DashboardBroadcastEnabled && _liveContexts.ContainsKey(tag))
+        {
+            LiveTradeContext ctx = _liveContexts[tag];
+            
+            int barsInTrade = CurrentBar - ctx.EntryBar;
+            string reason = execution.Order.Name;
+            
+            PerformanceBus.Publish(new TradeEvent
+            {
+                Type = TradeEventType.Exit,
+                Tag = tag,
+                Instrument = Instrument.FullName,
+                Strategy = Name,
+                Account = Account.Name,
+                IsLong = ctx.IsLong,
+                Qty = ctx.Qty,
+                Time = time,
+                EntryPrice = ctx.EntryPrice,
+                ExitPrice = price,
+                StopPrice = ctx.StopPrice,
+                TargetPrice = ctx.TargetPrice,
+                BarsInTrade = barsInTrade,
+                ExitReason = reason,
+                PointValue = ctx.PointValue,
+                Commission = 0  // Add actual commission if known
+            });
+            
+            _liveContexts.Remove(tag);
+        }
+    }
+}
+
+
+================================================================================
+STEP 6: (Optional) Publish BE/Secure/Trail Events
+================================================================================
+
+When you move stops to breakeven, secure, or trail, call:
+
+if (DashboardBroadcastEnabled && _liveContexts.ContainsKey(entryTag))
+{
+    PerformanceBus.Publish(new TradeEvent
+    {
+        Type = TradeEventType.BE,  // or Secure, or Trail
+        Tag = entryTag,
+        Time = Time[0],
+        Instrument = Instrument.FullName
+    });
+}
+
+
+================================================================================
+WHAT HAPPENS
+================================================================================
+
+1. Strategy publishes Entry event → Dashboard adds to "Open trades"
+2. Strategy publishes Exit event → Dashboard:
+   - Calculates R-multiple
+   - Calculates PnL in dollars
+   - Updates all KPIs
+   - Refreshes equity curve
+   - Updates trade table
+   - Updates coaching recommendations
+
+ALL IN REAL-TIME - No CSV needed!
+
+
+================================================================================
+VERIFICATION
+================================================================================
+
+After adding the code:
+
+1. Press F5 to compile
+2. Enable OrderFlowBot on a chart
+3. Dashboard auto-opens
+4. Take one trade (or run on replay data)
+5. Watch dashboard update:
+   - Trades count goes to 1
+   - Total PnL shows dollar amount
+   - Trade appears in table
+   - Equity curve updates
+   - Coach provides recommendations
+
+===============================================================================
+SIMPLIFIED EXAMPLE (Minimal Integration)
+================================================================================
+
+// At top
+using NinjaTrader.Custom.AddOns.OFB.Dashboard.Models;
+using NinjaTrader.Custom.AddOns.OFB.Dashboard.Services;
+
+// In your class
+private Dictionary<string, double> _entryPrices = new Dictionary<string, double>();
+
+// When you enter
+string tag = "Entry_" + CurrentBar;
+EnterLongLimit(0, true, 1, Close[0], tag);
+_entryPrices[tag] = Close[0];
+
+PerformanceBus.Publish(new TradeEvent {
+    Type = TradeEventType.Entry,
+    Tag = tag,
+    Instrument = Instrument.FullName,
+    Strategy = Name,
+    Account = Account.Name,
+    IsLong = true,
+    Qty = 1,
+    Time = Time[0],
+    EntryPrice = Close[0],
+    StopPrice = Close[0] - 10 * TickSize,
+    TargetPrice = Close[0] + 20 * TickSize,
+    PointValue = Instrument.MasterInstrument.PointValue
+});
+
+// When you exit (in OnExecutionUpdate)
+if (execution.Order.OrderState == OrderState.Filled)
+{
+    string tag = execution.Order.FromEntrySignal;
+    if (_entryPrices.ContainsKey(tag))
+    {
+        PerformanceBus.Publish(new TradeEvent {
+            Type = TradeEventType.Exit,
+            Tag = tag,
+            Time = execution.Time,
+            ExitPrice = execution.Price,
+            BarsInTrade = CurrentBar - entryBar,
+            ExitReason = execution.Order.Name,
+            PointValue = Instrument.MasterInstrument.PointValue
+        });
+        
+        _entryPrices.Remove(tag);
+    }
+}
+
+
+================================================================================
+DONE!
+================================================================================
+
+The dashboard will now update in real-time as your strategy trades.
+No CSV import needed - everything is automatic!
+
+================================================================================
+
+
+
+
+
+
+
+
+
+

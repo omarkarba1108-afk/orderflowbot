@@ -1,4 +1,4 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Models.DataBars;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Models.TechnicalLevelsModel;
@@ -7,8 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json; // switched from System.Text.Json
 
 namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
 {
@@ -16,7 +15,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
     {
         private readonly EventsContainer _eventsContainer;
         private readonly string _directoryPath;
-        private readonly JsonSerializerOptions _jsonOptions;
+        private readonly JsonSerializerSettings _jsonSettings;
         private TradeData _trainingTradeData;
         private readonly int _barsToExtract;
 
@@ -27,11 +26,10 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
             _trainingTradeData = null;
             _barsToExtract = 3;
 
-            _jsonOptions = new JsonSerializerOptions
+            _jsonSettings = new JsonSerializerSettings
             {
-                WriteIndented = false,
-                DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-                NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals | JsonNumberHandling.AllowReadingFromString,
+                Formatting = Formatting.None,
+                NullValueHandling = NullValueHandling.Include
             };
 
             eventsContainer.TradeAnalysisEvents.OnAddTrainingEntry += HandleAddTrainingEntry;
@@ -57,10 +55,10 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
                 IReadOnlyTechnicalLevels currentTechnicalLevels = _eventsContainer.TechnicalLevelsEvents.GetCurrentTechnicalLevels();
                 List<IReadOnlyTechnicalLevels> readOnlyTechnicalLevelsList = _eventsContainer.TechnicalLevelsEvents.GetTechnicalLevelsList();
 
-                var extractedDataBars = dataBars.Skip(Math.Max(0, dataBars.Count - _barsToExtract)).ToList();
-                var extractedTechnicalLevelsList = readOnlyTechnicalLevelsList.Skip(Math.Max(0, readOnlyTechnicalLevelsList.Count - _barsToExtract)).ToList();
+                List<IReadOnlyDataBar> extractedDataBars = dataBars.Skip(Math.Max(0, dataBars.Count - _barsToExtract)).ToList();
+                List<IReadOnlyTechnicalLevels> extractedTechnicalLevelsList = readOnlyTechnicalLevelsList.Skip(Math.Max(0, readOnlyTechnicalLevelsList.Count - _barsToExtract)).ToList();
 
-                var tradeData = new TradeData
+                TradeData tradeData = new TradeData
                 {
                     TradeDirection = (int)tradeType,
                     PreTradeBars = GetPreTradeBars(TradeStatus.None, extractedDataBars, extractedTechnicalLevelsList),
@@ -89,11 +87,11 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
             else
             {
                 string fileContent = File.ReadAllText(filePath);
-                existingData = JsonSerializer.Deserialize<List<TradeData>>(fileContent, _jsonOptions) ?? new List<TradeData>();
+                existingData = JsonConvert.DeserializeObject<List<TradeData>>(fileContent) ?? new List<TradeData>();
             }
 
             existingData.Add(_trainingTradeData);
-            string jsonData = JsonSerializer.Serialize(existingData, _jsonOptions);
+            string jsonData = JsonConvert.SerializeObject(existingData, _jsonSettings);
             File.WriteAllText(filePath, jsonData);
 
             _trainingTradeData = null;
@@ -148,7 +146,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
             {
                 DataBar = dataBar,
                 DeltaBar = deltaBar,
-                OrderFlowData = orderFlowData,
+                OrderFlowData = orderFlowData
             };
         }
 
@@ -164,8 +162,9 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
         {
             IReadOnlyTechnicalLevels currentTechnicalLevels = _eventsContainer.TechnicalLevelsEvents.GetCurrentTechnicalLevels();
             List<IReadOnlyTechnicalLevels> readOnlyTechnicalLevelsList = _eventsContainer.TechnicalLevelsEvents.GetTechnicalLevelsList();
-            var extractedDataBars = dataBars.Skip(Math.Max(0, dataBars.Count - _barsToExtract)).ToList();
-            var extractedTechnicalLevelsList = readOnlyTechnicalLevelsList.Skip(Math.Max(0, readOnlyTechnicalLevelsList.Count - _barsToExtract)).ToList();
+
+            List<IReadOnlyDataBar> extractedDataBars = dataBars.Skip(Math.Max(0, dataBars.Count - _barsToExtract)).ToList();
+            List<IReadOnlyTechnicalLevels> extractedTechnicalLevelsList = readOnlyTechnicalLevelsList.Skip(Math.Max(0, readOnlyTechnicalLevelsList.Count - _barsToExtract)).ToList();
 
             var filteredData = new
             {
@@ -174,7 +173,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
                 CurrentBar = GetLiveTradeBar(currentDataBar, currentTechnicalLevels)
             };
 
-            return JsonSerializer.Serialize(filteredData, _jsonOptions);
+            return JsonConvert.SerializeObject(filteredData, _jsonSettings);
         }
 
         private List<TradeBar> GetLivePreTradeBars(List<IReadOnlyDataBar> dataBars, List<IReadOnlyTechnicalLevels> readOnlyTechnicalLevels)
@@ -191,31 +190,27 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
 
         private TradeBar GetLiveTradeBar(IReadOnlyDataBar readOnlyDataBar, IReadOnlyTechnicalLevels readOnlyTechnicalLevels)
         {
-            SignalBar dataBar = null;
-            SignalBar deltaBar = null;
-            OrderFlowData orderFlowData = null;
-
-            dataBar = new SignalBar();
+            SignalBar dataBar = new SignalBar();
             dataBar.Update(
                 readOnlyDataBar,
                 readOnlyTechnicalLevels,
                 SignalBarType.DataBar
             );
 
-            deltaBar = new SignalBar();
+            SignalBar deltaBar = new SignalBar();
             deltaBar.Update(
                 readOnlyDataBar,
                 readOnlyTechnicalLevels,
                 SignalBarType.DeltaBar
             );
 
-            orderFlowData = new OrderFlowData(readOnlyDataBar);
+            OrderFlowData orderFlowData = new OrderFlowData(readOnlyDataBar);
 
             return new TradeBar
             {
                 DataBar = dataBar,
                 DeltaBar = deltaBar,
-                OrderFlowData = orderFlowData,
+                OrderFlowData = orderFlowData
             };
         }
 

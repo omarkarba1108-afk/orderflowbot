@@ -1,4 +1,4 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Events;
 using System;
@@ -27,8 +27,10 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
                 _httpClient = null;
             }
 
-            var service = MessagingConfig.Instance.ExternalAnalysisService;
-            _serviceUrl = service.StartsWith("http") ? service : $"http://{service}";
+            string service = MessagingConfig.Instance.ExternalAnalysisService;
+            _serviceUrl = service != null && service.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                ? service
+                : "http://" + service;
 
             eventsContainer.MessagingEvents.OnGetAnalysis += HandleGetAnalysis;
         }
@@ -37,7 +39,7 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
         {
             if (!MessagingConfig.Instance.ExternalAnalysisServiceEnabled)
             {
-                return $"{{\"error\":\"Service not available\"}}";
+                return "{\"error\":\"Service not available\"}";
             }
 
             try
@@ -54,19 +56,20 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Services
                     return result;
                 }
 
-                _eventManager.PrintMessage($"Request failed: {response.StatusCode}");
-                return $"{{\"error\":\"Request failed with status {response.StatusCode}\"}}";
+                _eventManager.PrintMessage("Request failed: " + response.StatusCode);
+                return "{\"error\":\"Request failed with status " + response.StatusCode + "\"}";
             }
             catch (Exception ex)
             {
-                _eventManager.PrintMessage($"Error communicating with analysis service: {ex.Message}");
+                _eventManager.PrintMessage("Error communicating with analysis service: " + ex.Message);
                 return "{\"error\":\"Communication failure\"}";
             }
         }
 
         public void Dispose()
         {
-            _httpClient?.Dispose();
+            if (_httpClient != null)
+                _httpClient.Dispose();
         }
     }
 }

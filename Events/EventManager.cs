@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Events
 {
@@ -10,11 +10,12 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Events
         {
             try
             {
-                eventHandler?.Invoke();
+                if (eventHandler != null)
+                    eventHandler();
             }
             catch (Exception ex)
             {
-                PrintMessage($"Error invoking event: {ex.Message}");
+                PrintMessage("Error invoking event: " + ex.Message);
             }
         }
 
@@ -22,11 +23,12 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Events
         {
             try
             {
-                eventHandler?.Invoke(arg);
+                if (eventHandler != null)
+                    eventHandler(arg);
             }
             catch (Exception ex)
             {
-                PrintMessage($"Error invoking event: {ex.Message}");
+                PrintMessage("Error invoking event: " + ex.Message);
             }
         }
 
@@ -34,11 +36,12 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Events
         {
             try
             {
-                eventHandler?.Invoke(arg1, arg2);
+                if (eventHandler != null)
+                    eventHandler(arg1, arg2);
             }
             catch (Exception ex)
             {
-                PrintMessage($"Error invoking event: {ex.Message}");
+                PrintMessage("Error invoking event: " + ex.Message);
             }
         }
 
@@ -47,17 +50,15 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Events
             try
             {
                 if (eventHandler != null)
-                {
                     return eventHandler();
-                }
 
                 PrintMessage("Event handler is null");
-                return default;
+                return default(T);
             }
             catch (Exception ex)
             {
-                PrintMessage($"Error invoking event: {ex.Message}");
-                return default;
+                PrintMessage("Error invoking event: " + ex.Message);
+                return default(T);
             }
         }
 

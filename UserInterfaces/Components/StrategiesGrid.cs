@@ -38,9 +38,12 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components
 
             _strategies = strategiesEvents.GetStrategies();
 
-            foreach (StrategyBase strategy in _strategies)
+            // Filter to only show FMS strategy
+            var fmsStrategy = _strategies.FirstOrDefault(s => s.StrategyData.Name == "FMS Stacked Imbalance Pullback");
+            if (fmsStrategy != null)
             {
-                initialToggleState[strategy.StrategyData.Name.Replace(" ", "")] = false;
+                _strategies = new List<StrategyBase> { fmsStrategy };
+                initialToggleState[fmsStrategy.StrategyData.Name.Replace(" ", "")] = false;
             }
         }
 

@@ -1,4 +1,4 @@
-﻿namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Configs
+namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Configs
 {
     public class DataBarConfig : IDataBarConfig
     {
@@ -8,7 +8,11 @@
         {
         }
 
-        public static DataBarConfig Instance => _instance;
+        // was: public static DataBarConfig Instance => _instance;
+        public static DataBarConfig Instance
+        {
+            get { return _instance; }
+        }
 
         public double TickSize { get; set; }
         public int TicksPerLevel { get; set; }
@@ -19,6 +23,5 @@
         public string TrainingDataDirectory { get; set; }
         public int Target { get; set; }
         public int Stop { get; set; }
-
     }
 }

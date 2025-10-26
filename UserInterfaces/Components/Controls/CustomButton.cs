@@ -1,8 +1,7 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Models;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Utils;
 using System;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -27,49 +26,49 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Contr
 
         private Button CreateButton(ButtonModel config)
         {
-            var button = new Button
-            {
-                Name = config.Name,
-                Content = config.IsToggleable && config.InitialToggleState ? config.ToggledContent : config.Content,
-                FontSize = 14,
-                Visibility = Visibility.Visible,
-                Foreground = UserInterfaceUtils.GetSolidColorBrushFromHex(config.TextColor),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch,
-                Tag = new ButtonState { IsToggled = config.IsToggleable && config.InitialToggleState, Config = config },
-                Background = UserInterfaceUtils.GetSolidColorBrushFromHex(config.BackgroundColor),
-                BorderBrush = Brushes.Transparent,
-                BorderThickness = new Thickness(0),
-                Padding = new Thickness(8),
-                Margin = new Thickness(3)
-            };
+            var button = new Button();
+
+            // IMPORTANT: WPF Name must be a valid identifier (letters/digits/_ and not start with a digit)
+            button.Name = SanitizeName(config.Name);
+
+            button.Content = (config.IsToggleable && config.InitialToggleState) ? config.ToggledContent : config.Content;
+            button.FontSize = 14;
+            button.Visibility = Visibility.Visible;
+            button.Foreground = UserInterfaceUtils.GetSolidColorBrushFromHex(config.TextColor);
+            button.HorizontalAlignment = HorizontalAlignment.Stretch;
+            button.VerticalAlignment = VerticalAlignment.Stretch;
+            button.Tag = new ButtonState { IsToggled = (config.IsToggleable && config.InitialToggleState), Config = config };
+            button.Background = UserInterfaceUtils.GetSolidColorBrushFromHex(config.BackgroundColor);
+            button.BorderBrush = Brushes.Transparent;
+            button.BorderThickness = new Thickness(0);
+            button.Padding = new Thickness(8);
+            button.Margin = new Thickness(3);
 
             button.Style = CreateCustomButtonStyle(button);
 
             if (config.ClickHandler != null)
             {
-                button.Click += async (sender, e) =>
+                button.Click += (sender, e) =>
                 {
                     if (config.IsToggleable)
-                    {
                         ToggleButton(button);
-                    }
 
-                    if (config.ClickHandler is Action<object, RoutedEventArgs> syncHandler)
-                    {
+                    // We only support sync handlers in NinjaScript
+                    var syncHandler = config.ClickHandler as Action<object, RoutedEventArgs>;
+                    if (syncHandler != null)
                         syncHandler(sender, e);
-                    }
-                    else if (config.ClickHandler is Func<object, RoutedEventArgs, Task> asyncHandler)
-                    {
-                        await asyncHandler(sender, e);
-                    }
                 };
             }
 
             button.IsEnabledChanged += (sender, e) => UpdateButtonState(button, button.IsEnabled);
-            button.MouseEnter += (sender, e) => button.Background = UserInterfaceUtils.GetSolidColorBrushFromHex(config.HoverBackgroundColor);
+            button.MouseEnter += (sender, e) =>
+            {
+                var state = (ButtonState)button.Tag;
+                button.Background = UserInterfaceUtils.GetSolidColorBrushFromHex(state.Config.HoverBackgroundColor);
+            };
             button.MouseLeave += (sender, e) => UpdateButtonState(button, button.IsEnabled);
 
+            // Start disabled style until grid enables
             UpdateButtonState(button, false);
 
             return button;
@@ -79,34 +78,36 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Contr
         {
             var style = new Style(typeof(Button));
 
-            var config = ((ButtonState)button.Tag).Config;
-
+            // Template
             style.Setters.Add(new Setter(Control.TemplateProperty, CreateButtonTemplate()));
 
-            style.Triggers.Add(new Trigger
-            {
-                Property = UIElement.IsMouseOverProperty,
-                Value = true,
-                Setters = { new Setter(Control.BackgroundProperty, UserInterfaceUtils.GetSolidColorBrushFromHex(config.HoverBackgroundColor)) }
-            });
+            var state = (ButtonState)button.Tag;
+            var cfg = state.Config;
 
-            style.Triggers.Add(new Trigger
-            {
-                Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty,
-                Value = true,
-                Setters = { new Setter(Control.BackgroundProperty, UserInterfaceUtils.GetSolidColorBrushFromHex(config.HoverBackgroundColor)) }
-            });
+            // Hover
+            var hoverTrig = new Trigger();
+            hoverTrig.Property = UIElement.IsMouseOverProperty;
+            hoverTrig.Value = true;
+            hoverTrig.Setters.Add(new Setter(Control.BackgroundProperty,
+                UserInterfaceUtils.GetSolidColorBrushFromHex(cfg.HoverBackgroundColor)));
+            style.Triggers.Add(hoverTrig);
 
-            style.Triggers.Add(new Trigger
-            {
-                Property = UIElement.IsEnabledProperty,
-                Value = false,
-                Setters =
-                {
-                    new Setter(Control.BackgroundProperty, UserInterfaceUtils.GetSolidColorBrushFromHex(CustomColors.BUTTON_DISABLED_BG_COLOR)),
-                    new Setter(UIElement.OpacityProperty, 0.5)
-                }
-            });
+            // Pressed
+            var pressedTrig = new Trigger();
+            pressedTrig.Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty;
+            pressedTrig.Value = true;
+            pressedTrig.Setters.Add(new Setter(Control.BackgroundProperty,
+                UserInterfaceUtils.GetSolidColorBrushFromHex(cfg.HoverBackgroundColor)));
+            style.Triggers.Add(pressedTrig);
+
+            // Disabled
+            var disabledTrig = new Trigger();
+            disabledTrig.Property = UIElement.IsEnabledProperty;
+            disabledTrig.Value = false;
+            disabledTrig.Setters.Add(new Setter(Control.BackgroundProperty,
+                UserInterfaceUtils.GetSolidColorBrushFromHex(CustomColors.BUTTON_DISABLED_BG_COLOR)));
+            disabledTrig.Setters.Add(new Setter(UIElement.OpacityProperty, 0.5));
+            style.Triggers.Add(disabledTrig);
 
             return style;
         }
@@ -116,10 +117,22 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Contr
             var template = new ControlTemplate(typeof(Button));
 
             var border = new FrameworkElementFactory(typeof(Border));
-            border.SetBinding(Border.BackgroundProperty, new Binding("Background") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-            border.SetBinding(Border.BorderBrushProperty, new Binding("BorderBrush") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-            border.SetBinding(Border.BorderThicknessProperty, new Binding("BorderThickness") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-            border.SetBinding(Border.PaddingProperty, new Binding("Padding") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
+            border.SetBinding(Border.BackgroundProperty, new Binding("Background")
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+            });
+            border.SetBinding(Border.BorderBrushProperty, new Binding("BorderBrush")
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+            });
+            border.SetBinding(Border.BorderThicknessProperty, new Binding("BorderThickness")
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+            });
+            border.SetBinding(Border.PaddingProperty, new Binding("Padding")
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+            });
 
             var contentPresenter = new FrameworkElementFactory(typeof(ContentPresenter));
             contentPresenter.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
@@ -127,7 +140,6 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Contr
             border.AppendChild(contentPresenter);
 
             template.VisualTree = border;
-
             return template;
         }
 
@@ -140,18 +152,16 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Contr
             {
                 if (config.IsToggleable)
                 {
-                    // Toggled is enabling
-                    button.Background = UserInterfaceUtils.GetSolidColorBrushFromHex(state.IsToggled ? config.BackgroundColor : config.ToggledBackgroundColor);
-                    button.Content = state.IsToggled && config.IsToggleable ? config.ToggledContent : config.Content;
+                    button.Background = UserInterfaceUtils.GetSolidColorBrushFromHex(
+                        state.IsToggled ? config.BackgroundColor : config.ToggledBackgroundColor);
+                    button.Content = state.IsToggled ? config.ToggledContent : config.Content;
                 }
                 else
                 {
                     button.Background = UserInterfaceUtils.GetSolidColorBrushFromHex(config.BackgroundColor);
-                    button.Content = state.IsToggled && config.IsToggleable ? config.ToggledContent : config.Content;
+                    button.Content = config.Content;
                 }
-
-
-                button.Opacity = 1;
+                button.Opacity = 1.0;
             }
             else
             {
@@ -167,6 +177,24 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components.Contr
             var state = (ButtonState)button.Tag;
             state.IsToggled = !state.IsToggled;
             UpdateButtonState(button, button.IsEnabled);
+        }
+
+        // ---- NEW: make WPF-safe names ----
+        private static string SanitizeName(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return "Btn";
+
+            var sb = new System.Text.StringBuilder(s.Length + 1);
+
+            // first char must be letter or underscore
+            if (!(char.IsLetter(s[0]) || s[0] == '_'))
+                sb.Append('B');
+
+            foreach (char c in s)
+                sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
+
+            return sb.ToString();
         }
     }
 }

@@ -1,4 +1,6 @@
-﻿namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Configs
+using NinjaTrader.Custom.AddOns.OrderFlowBot.States;
+
+namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Configs
 {
     public class MessagingConfig
     {
@@ -8,7 +10,11 @@
         {
         }
 
-        public static MessagingConfig Instance => _instance;
+        // was: public static MessagingConfig Instance => _instance;
+        public static MessagingConfig Instance
+        {
+            get { return _instance; }
+        }
 
         public EnvironmentType MarketEnvironment { get; set; }
         public string ExternalAnalysisService { get; set; }

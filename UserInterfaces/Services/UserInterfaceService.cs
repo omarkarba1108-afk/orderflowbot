@@ -1,4 +1,4 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Services;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Components;
@@ -19,7 +19,6 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Services
             ServicesContainer servicesContainer,
             UserInterfaceEvents userInterfaceEvents,
             IGrid tradeManagementGrid,
-            IGrid tradeDirectionGrid,
             IGrid strategiesGrid
         )
         {
@@ -41,36 +40,37 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Services
             grids = new List<IGrid>
             {
                 tradeManagementGrid,
-                tradeDirectionGrid,
                 strategiesGrid
             };
         }
 
         private void HandleEnabledDisabledTriggered(bool isEnabled)
-        {
-            foreach (var grid in grids)
-            {
-                grid?.HandleEnabledDisabledTriggered(isEnabled);
-            }
+{
+    foreach (var grid in grids)
+    {
+        if (grid != null)
+            grid.HandleEnabledDisabledTriggered(isEnabled);
+    }
 
-            _tradingService.HandleEnabledDisabledTriggered(isEnabled);
-        }
+    _tradingService.HandleEnabledDisabledTriggered(isEnabled);
+}
 
-        private void HandleAutoTradeTriggered(bool isEnabled)
-        {
-            foreach (var grid in grids)
-            {
-                grid?.HandleAutoTradeTriggered(isEnabled);
-            }
+private void HandleAutoTradeTriggered(bool isEnabled)
+{
+    foreach (var grid in grids)
+    {
+        if (grid != null)
+            grid.HandleAutoTradeTriggered(isEnabled);
+    }
 
-            _tradingService.UpdateIsAutoTradeEnabled(isEnabled);
-            _tradingService.UpdateSelectedTradeDirection(isEnabled ? Direction.Any : Direction.Flat);
+    _tradingService.UpdateIsAutoTradeEnabled(isEnabled);
+    _tradingService.UpdateSelectedTradeDirection(isEnabled ? Direction.Any : Direction.Flat);
 
-            if (isEnabled)
-            {
-                _tradingService.HandleTriggerStrikePriceTriggered(0);
-            }
-        }
+    if (isEnabled)
+    {
+        _tradingService.HandleTriggerStrikePriceTriggered(0);
+    }
+}
 
         private void HandleAlertTriggered(bool isEnabled)
         {

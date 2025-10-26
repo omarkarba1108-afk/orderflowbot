@@ -1,4 +1,4 @@
-﻿using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
+using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Containers;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Models.DataBars;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Models.TechnicalLevelsModel;
@@ -129,17 +129,17 @@ namespace NinjaTrader.Custom.AddOns.OrderFlowBot.Models.Strategies
         }
 
         protected bool IsValidTriggerStrikePrice()
-        {
-            // SonarLint zero equality check
-            if (validTriggerStrikePrice.Equals(default))
-            {
-                return true;
-            }
+													{
+    // treat 0 as “no strike price set”
+    if (validTriggerStrikePrice == 0.0)
+        return true;
 
-            double highPrice = currentDataBar.Prices.High;
-            double lowPrice = currentDataBar.Prices.Low;
+    double highPrice = currentDataBar.Prices.High;
+    double lowPrice  = currentDataBar.Prices.Low;
 
-            return validTriggerStrikePrice >= lowPrice && validTriggerStrikePrice <= highPrice;
-        }
+    return validTriggerStrikePrice >= lowPrice
+        && validTriggerStrikePrice <= highPrice;
+						}
+
     }
 }

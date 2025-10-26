@@ -1,0 +1,303 @@
+================================================================================
+OFB DASHBOARD - COMPLETE INTEGRATION SUMMARY
+================================================================================
+
+Status: ✅ Dashboard READY | ✅ Auto-open READY | ✅ Live Events READY | ✅ PnL Tracking READY
+
+================================================================================
+WHAT TO ADD TO YOUR OrderFlowBot.cs
+================================================================================
+
+THREE SECTIONS: Using statements, Properties, OnStateChange code
+
+================================================================================
+SECTION 1: Using Statements (add at top of file)
+================================================================================
+
+using System.Windows.Input;
+using System.Windows.Threading;
+using NinjaTrader.Custom.Strategies.OrderFlowBot.Ui;
+using NinjaTrader.Custom.AddOns.OFB.Dashboard.Models;
+using NinjaTrader.Custom.AddOns.OFB.Dashboard.Services;
+
+
+================================================================================
+SECTION 2: Add These Properties
+================================================================================
+
+[NinjaScriptProperty]
+[Display(Name = "Open Dashboard On Enable", Order = 999, GroupName = "Dashboard")]
+public bool OpenDashboardOnEnable { get; set; }
+
+[NinjaScriptProperty]
+[Display(Name = "Dashboard Broadcast Enabled", Order = 1000, GroupName = "Dashboard")]
+public bool DashboardBroadcastEnabled { get; set; }
+
+private class LiveTradeContext
+{
+    public bool IsLong;
+    public int Qty;
+    public string Tag;
+    public int EntryBar;
+    public double EntryPrice;
+    public double StopPrice;
+    public double TargetPrice;
+    public DateTime EntryTime;
+    public double PointValue;
+}
+
+private System.Collections.Generic.Dictionary<string, LiveTradeContext> _liveContexts 
+    = new System.Collections.Generic.Dictionary<string, LiveTradeContext>();
+
+
+================================================================================
+SECTION 3: Modify OnStateChange()
+================================================================================
+
+IN State.SetDefaults - ADD:
+    OpenDashboardOnEnable = true;
+    DashboardBroadcastEnabled = true;
+
+IN State.DataLoaded - ADD AT END:
+    // Install dashboard menu
+    DashboardLauncher.EnsureInstalled();
+    
+    // Bind hotkey: Ctrl+Shift+D
+    try
+    {
+        if (ChartControl != null && ChartControl.Dispatcher != null)
+        {
+            ChartControl.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+            {
+                if (ChartControl == null) return;
+                var cmd = ApplicationCommands.NotACommand;
+                var cmdBinding = new CommandBinding(cmd, (s, e) => DashboardLauncher.ShowWindow());
+                var keyBinding = new KeyBinding(cmd, Key.D, ModifierKeys.Control | ModifierKeys.Shift);
+                ChartControl.CommandBindings.Add(cmdBinding);
+                ChartControl.InputBindings.Add(keyBinding);
+            }));
+        }
+    }
+    catch { }
+
+IN State.Transition - ADD ENTIRE BLOCK (or add inside if exists):
+    else if (State == State.Transition)
+    {
+        if (OpenDashboardOnEnable)
+            DashboardLauncher.ShowWindow();
+    }
+
+
+================================================================================
+SECTION 4: Publish Entry Events
+================================================================================
+
+Find where you call EnterLongLimit() or EnterShortLimit().
+Add this AFTER the order submission:
+
+if (DashboardBroadcastEnabled)
+{
+    string entryTag = /* your entry tag */;
+    bool isLong = /* true for long, false for short */;
+    int qty = /* your quantity */;
+    double entryPrice = /* your entry price */;
+    double stopPrice = /* your stop price */;
+    double targetPrice = /* your target price */;
+    
+    double pointValue = Instrument.MasterInstrument.PointValue;
+    
+    _liveContexts[entryTag] = new LiveTradeContext
+    {
+        Tag = entryTag,
+        IsLong = isLong,
+        Qty = qty,
+        EntryBar = CurrentBar,
+        EntryPrice = entryPrice,
+        StopPrice = stopPrice,
+        TargetPrice = targetPrice,
+        EntryTime = Time[0],
+        PointValue = pointValue
+    };
+
+    PerformanceBus.Publish(new TradeEvent
+    {
+        Type = TradeEventType.Entry,
+        Tag = entryTag,
+        Instrument = Instrument.FullName,
+        Strategy = Name,
+        Account = Account.Name,
+        IsLong = isLong,
+        Qty = qty,
+        Time = Time[0],
+        EntryPrice = entryPrice,
+        StopPrice = stopPrice,
+        TargetPrice = targetPrice,
+        PointValue = pointValue
+    });
+}
+
+
+================================================================================
+SECTION 5: Publish Exit Events (in OnExecutionUpdate)
+================================================================================
+
+In OnExecutionUpdate(), when a stop or target fills:
+
+if (DashboardBroadcastEnabled && 
+    (execution.Order.Name == "Stop loss" || execution.Order.Name == "Profit target") &&
+    execution.Order.OrderState == OrderState.Filled)
+{
+    string tag = execution.Order.FromEntrySignal;
+    
+    if (_liveContexts.ContainsKey(tag))
+    {
+        LiveTradeContext ctx = _liveContexts[tag];
+        int barsInTrade = CurrentBar - ctx.EntryBar;
+        
+        PerformanceBus.Publish(new TradeEvent
+        {
+            Type = TradeEventType.Exit,
+            Tag = tag,
+            Instrument = Instrument.FullName,
+            Strategy = Name,
+            Account = Account.Name,
+            IsLong = ctx.IsLong,
+            Qty = ctx.Qty,
+            Time = execution.Time,
+            EntryPrice = ctx.EntryPrice,
+            ExitPrice = execution.Price,
+            StopPrice = ctx.StopPrice,
+            TargetPrice = ctx.TargetPrice,
+            BarsInTrade = barsInTrade,
+            ExitReason = execution.Order.Name,
+            PointValue = ctx.PointValue,
+            Commission = 0  // Update with actual commission if available
+        });
+        
+        _liveContexts.Remove(tag);
+    }
+}
+
+
+================================================================================
+WHAT YOU'LL SEE IN THE DASHBOARD
+================================================================================
+
+After adding this code and taking a trade:
+
+✅ Trades: Shows trade count (increments on each exit)
+✅ Hit Rate: Win percentage
+✅ Expectancy (R): Average R per trade
+✅ Profit Factor: Win/Loss ratio
+✅ Total PnL: Live dollar profit/loss 💰
+✅ Sharpe-like: Risk-adjusted returns
+✅ Avg MAE/MFE: Max adverse/favorable excursion
+✅ BE Ratio: Breakeven frequency
+
+✅ Trade Table: Shows each trade with Time, Side, R, $PnL, Reason
+✅ Coach Panel: "BE too early: raise BE_FRACTION +0.10" etc.
+✅ Auto-updates: No CSV needed, no manual refresh
+
+
+================================================================================
+QUICK CHECKLIST
+================================================================================
+
+☐ Added 5 using statements
+☐ Added 2 properties (OpenDashboardOnEnable, DashboardBroadcastEnabled)
+☐ Added LiveTradeContext class
+☐ Added _liveContexts dictionary
+☐ Set both properties to true in SetDefaults
+☐ Added DashboardLauncher code in DataLoaded
+☐ Added ShowWindow() in Transition
+☐ Added entry event publishing in your entry logic
+☐ Added exit event publishing in OnExecutionUpdate
+☐ Compiled successfully (F5)
+☐ Dashboard auto-opens when strategy starts
+☐ Trade count updates after first trade
+
+
+================================================================================
+THREE WAYS TO OPEN DASHBOARD
+================================================================================
+
+1. AUTO-OPEN: Opens when strategy starts (OpenDashboardOnEnable = true)
+2. HOTKEY: Press Ctrl+Shift+D on the chart
+3. MENU: Control Center → Add Ons → OFB Dashboard (if menu injection worked)
+
+
+================================================================================
+TESTING
+================================================================================
+
+1. Press F5 to compile
+2. Enable OrderFlowBot on a chart
+3. Dashboard should auto-open
+4. Place ONE trade (or run on replay data)
+5. When trade exits:
+   - Trades: 1
+   - Total PnL: Shows dollar amount
+   - Hit Rate: 100% or 0% depending on win/loss
+   - Trade appears in table
+   - Coach provides recommendations
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Q: Dashboard doesn't open
+A: Check that OpenDashboardOnEnable = true in strategy parameters
+
+Q: Dashboard opens but shows no trades
+A: Make sure DashboardBroadcastEnabled = true
+   Check that you added the PerformanceBus.Publish() calls
+   Entry and Exit must use the SAME tag
+
+Q: PnL shows $0
+A: Make sure you're passing PointValue in events
+   Check that PointValue = Instrument.MasterInstrument.PointValue
+
+Q: Trade count updates but no $ amount
+A: Entry event needs PointValue field set
+   Exit event needs PointValue field set
+
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+After live events work:
+- Collect 10-20 trades
+- Review coach recommendations
+- Adjust parameters based on advice (BE_FRACTION, stop distance, trail settings)
+- Compare before/after KPIs
+
+
+================================================================================
+FILES REFERENCE
+================================================================================
+
+Integration Guides:
+✅ COMPLETE_INTEGRATION_SUMMARY.txt (this file)
+✅ LIVE_EVENT_INTEGRATION.txt (detailed event publishing guide)
+✅ MANUAL_INTEGRATION.txt (basic launcher integration)
+
+Sample Data:
+✅ AddOns/OFB.Dashboard/sample_trades.csv (for testing CSV import)
+
+Code Reference:
+✅ AddOns/OFB.Dashboard/StrategySnippet.txt (legacy - use this guide instead)
+
+
+================================================================================
+
+
+
+
+
+
+
+
+
+

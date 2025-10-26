@@ -1,4 +1,4 @@
-﻿using NinjaTrader.Cbi;
+using NinjaTrader.Cbi;
 using NinjaTrader.Custom.AddOns.OrderFlowBot.Configs;
 using NinjaTrader.NinjaScript.DrawingTools;
 using System;
@@ -15,9 +15,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string _atmStrategyId;
         private bool _isAtmStrategyCreated;
 
-        // Trade Analysis
-        private double _entryPrice;
-        private MarketPosition _initialPosition;
+        // Trade Analysis (fields moved to main OrderFlowBot.cs)
 
         public void InitializeStrategyManager()
         {
@@ -33,7 +31,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             _entryPrice = 0.0;
 
             // Sound
-            string baseDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "NinjaTrader 8", "bin", "Custom", "AddOns", "OrderFlowBot", "Assets");
+            string baseDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "NinjaTrader 8", "bin", "Custom", "AddOns", "OrderFlowBot", "Assets");
             string alertSoundFilePath = Path.Combine(baseDirectory, "alert.wav");
 
             _alertSoundFilePath = File.Exists(alertSoundFilePath)
@@ -41,54 +41,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 : @"C:\Program Files\NinjaTrader 8\sounds\Alert2.wav";
         }
 
-        protected override void OnExecutionUpdate(
-            Execution execution,
-            string executionId,
-            double price,
-            int quantity,
-            MarketPosition marketPosition,
-            string orderId,
-            DateTime time)
-        {
-            if (execution.Order?.OrderState == OrderState.Filled)
-            {
-                // Entry logic
-                if (Position.MarketPosition == MarketPosition.Long || Position.MarketPosition == MarketPosition.Short)
-                {
-                    if (TrainingDataEnabled)
-                    {
-                        _entryPrice = Position.AveragePrice;
-                        _initialPosition = Position.MarketPosition;
-
-                        TradeType tradeType = _initialPosition == MarketPosition.Long ? TradeType.Buy : TradeType.Sell;
-                        _eventsContainer.TradeAnalysisEvents.AddTrainingEntry(tradeType);
-                    }
-                }
-                // Exit logic
-                else if (Position.MarketPosition == MarketPosition.Flat)
-                {
-                    if (TrainingDataEnabled)
-                    {
-                        double exitPrice = price;
-                        int winOrLoss = 0;
-
-                        if (_initialPosition == MarketPosition.Long)
-                        {
-                            winOrLoss = exitPrice > _entryPrice ? 1 : 0;
-                        }
-                        else if (_initialPosition == MarketPosition.Short)
-                        {
-                            winOrLoss = exitPrice < _entryPrice ? 1 : 0;
-                        }
-
-                        _eventsContainer.TradeAnalysisEvents.AddTrainingExit(winOrLoss);
-                    }
-
-                    ResetBacktestStrategy();
-                    _strategiesEvents.ResetStrategyData();
-                }
-            }
-        }
 
         private void HandleStrategyTriggeredProcessed()
         {
@@ -101,13 +53,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ProcessTriggeredStrategy()
         {
             if (BacktestEnabled)
-            {
                 ProcessBacktestTriggeredStrategy();
-            }
             else
-            {
                 ProcessAtmTriggeredStrategy();
-            }
         }
 
         #region Back Test
@@ -115,20 +63,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ProcessBacktestTriggeredStrategy()
         {
             if (Position.MarketPosition != MarketPosition.Flat && _currentTradingState.HasMarketPosition)
-            {
                 return;
-            }
 
             if (_currentTradingState.TriggeredDirection == Direction.Long)
             {
                 SetProfitTarget(_triggeredName, CalculationMode.Ticks, Target);
                 SetStopLoss(_triggeredName, CalculationMode.Ticks, Stop, false);
-                // Enter using tick series
                 EnterLong(1, Quantity, _triggeredName);
 
                 _tradingEvents.LastTradedBarNumberTriggered(_currentDataBar.BarNumber);
                 _tradingEvents.MarketPositionTriggered(true);
-                _eventManager.PrintMessage($"Enter Long | {_currentDataBar.Time} {_triggeredName}");
+                // Silenced: FMS prints its own ENTRY_SNAPSHOT
+                // _eventManager.PrintMessage("Enter Long | " + _currentDataBar.Time + " " + _triggeredName);
 
                 return;
             }
@@ -137,18 +83,19 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 SetProfitTarget(_triggeredName, CalculationMode.Ticks, Target);
                 SetStopLoss(_triggeredName, CalculationMode.Ticks, Stop, false);
-                // Enter using tick series
                 EnterShort(1, Quantity, _triggeredName);
 
                 _tradingEvents.LastTradedBarNumberTriggered(_currentDataBar.BarNumber);
                 _tradingEvents.MarketPositionTriggered(true);
-                _eventManager.PrintMessage($"Enter Short | {_currentDataBar.Time} {_triggeredName}");
+                // Silenced: FMS prints its own ENTRY_SNAPSHOT
+                // _eventManager.PrintMessage("Enter Short | " + _currentDataBar.Time + " " + _triggeredName);
             }
         }
 
         private void ResetBacktestStrategy()
         {
-            _eventManager.PrintMessage($"Exit | {_currentDataBar.Time} {_triggeredName}", true);
+            // Silenced: FMS prints its own EXIT_SNAPSHOT
+            // _eventManager.PrintMessage("Exit | " + _currentDataBar.Time + " " + _triggeredName, true);
 
             // Prevent re-entry on exit bar
             _tradingEvents.LastTradedBarNumberTriggered(_dataBarEvents.GetCurrentDataBar().BarNumber);
@@ -163,16 +110,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ProcessAtmTriggeredStrategy()
         {
             if (State < State.Realtime && _currentTradingState.HasMarketPosition)
-            {
                 return;
-            }
 
             if (!_isAtmStrategyCreated)
             {
                 if (_currentTradingState.TriggeredDirection == Direction.Long)
                 {
                     EnterAtmPosition(true);
-
                     return;
                 }
 
@@ -190,9 +134,24 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             _atmStrategyId = GetAtmStrategyUniqueId();
 
-            string atmTemplateName = ChartControl.OwnerChart.ChartTrader.AtmStrategy.Template;
+            // was: ChartControl?.OwnerChart?.ChartTrader?.AtmStrategy?.Template ?? string.Empty
+            string atmTemplateName = string.Empty;
+            if (ChartControl != null && ChartControl.OwnerChart != null &&
+                ChartControl.OwnerChart.ChartTrader != null &&
+                ChartControl.OwnerChart.ChartTrader.AtmStrategy != null &&
+                ChartControl.OwnerChart.ChartTrader.AtmStrategy.Template != null)
+            {
+                atmTemplateName = ChartControl.OwnerChart.ChartTrader.AtmStrategy.Template;
+            }
 
-            _eventManager.PrintMessage($"***** {atmTemplateName} *****");
+            // guard: if no ATM template, bail early to avoid runtime errors
+            if (string.IsNullOrEmpty(atmTemplateName))
+            {
+                _eventManager.PrintMessage("No ATM template loaded. Aborting ATM entry.");
+                return;
+            }
+
+            _eventManager.PrintMessage("***** " + atmTemplateName + " *****");
 
             if (_currentTradingState.IsAlertEnabled)
             {
@@ -200,14 +159,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             _tradingEvents.LastTradedBarNumberTriggered(_currentDataBar.BarNumber);
-            _eventManager.PrintMessage($"Enter {entryDirection} | {_currentDataBar.Time} {_triggeredName}");
+            _eventManager.PrintMessage("Enter " + entryDirection + " | " + _currentDataBar.Time + " " + _triggeredName);
 
             if (finalDirection)
             {
                 if (_currentTradingState.IsAlertEnabled)
                 {
                     TradeAlert(true);
-
                     return;
                 }
 
@@ -225,7 +183,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (_currentTradingState.IsAlertEnabled)
                 {
                     TradeAlert(false);
-
                     return;
                 }
 
@@ -245,7 +202,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             _atmStrategyId = null;
             _isAtmStrategyCreated = false;
 
-            _eventManager.PrintMessage($"Exit | {_currentDataBar.Time} {_triggeredName}", true);
+            _eventManager.PrintMessage("Exit | " + _currentDataBar.Time + " " + _triggeredName, true);
 
             // Prevent re-entry on exit bar
             _tradingEvents.LastTradedBarNumberTriggered(_dataBarEvents.GetCurrentDataBar().BarNumber);
@@ -285,13 +242,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void TradeAlert(bool longEntry)
         {
             if (longEntry)
-            {
                 Draw.TriangleUp(this, "AlertTriangleUp" + CurrentBar, true, 0, Close[0] - TickSize, Brushes.Blue);
-            }
             else
-            {
                 Draw.TriangleDown(this, "AlertTriangleDown" + CurrentBar, true, 0, Close[0] + TickSize, Brushes.Red);
-            }
 
             PlaySound(_alertSoundFilePath);
             ResetAtm();

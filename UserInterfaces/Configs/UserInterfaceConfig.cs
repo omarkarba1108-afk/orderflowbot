@@ -1,4 +1,4 @@
-﻿namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs
+namespace NinjaTrader.Custom.AddOns.OrderFlowBot.UserInterfaces.Configs
 {
     public class UserInterfaceConfig
     {
@@ -8,7 +8,11 @@
         {
         }
 
-        public static UserInterfaceConfig Instance => _instance;
+        // was: public static UserInterfaceConfig Instance => _instance;
+        public static UserInterfaceConfig Instance
+        {
+            get { return _instance; }
+        }
 
         public string AssetsPath { get; set; }
     }
